@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="DreamCloth: World-Prior Distillation for Physically Plausible Simulation Parameters from Monocular Observations">
+    <meta name="keywords" content="physics simulation, cloth dynamics, video diffusion, MPM, inverse simulation, virtual try-on">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="DreamCloth: World-Prior Distillation for Physically Plausible Simulation Parameters">
+    <meta property="og:description" content="A framework for distilling physically plausible simulation parameters from minimal visual input using pretrained video generation models.">
+    <meta property="og:type" content="website">
+    
+    <title>DreamCloth: World-Prior Distillation for Physically Plausible Simulation Parameters</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="static/images/favicon.svg">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">DreamCloth</a>
+            <div class="nav-links">
+                <a href="#abstract">Abstract</a>
+                <a href="#method">Method</a>
+                <a href="#results">Results</a>
+                <a href="#bibtex">BibTeX</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="container">
+            <h1 class="title">
+                <span class="title-icon">🧵</span>
+                DreamCloth
+            </h1>
+            <h2 class="subtitle">
+                World-Prior Distillation for Physically Plausible Simulation Parameters from Monocular Observations
+            </h2>
+            
+            <!-- Authors -->
+            <div class="authors">
+                <div class="author">
+                    <a href="#">Saroj Poudel</a><sup>*</sup>
+                </div>
+                <div class="author">
+                    <a href="#">Dipan Bartaula</a><sup>*</sup>
+                </div>
+                <div class="author">
+                    <a href="#">Samip Ghimire</a><sup>*</sup>
+                </div>
+                <div class="author">
+                    <a href="#">Anish Bishwokarma</a><sup>*</sup>
+                </div>
+                <div class="author">
+                    <a href="#">Shashank Bhatta</a><sup>*</sup>
+                </div>
+                <div class="author">
+                    <a href="#">Pravin Sangroula</a><sup></sup>
+                </div>
+            </div>
+            
+            <div class="affiliation">
+                <p>Tribhuvan University, Institute of Engineering, Pulchowk Campus</p>
+                <p class="venue">SIGGRAPH 2026 (Submission)</p>
+            </div>
+            
+            <p class="equal-contrib"><sup>*</sup>Equal Contribution</p>
+            
+            <!-- Links -->
+            <div class="links">
+                <a href="#" class="link-btn">
+                    <i class="fas fa-file-pdf"></i>
+                    <span>Paper</span>
+                </a>
+                <a href="https://github.com/poudelsaroj/Dreamcloth" class="link-btn">
+                    <i class="fab fa-github"></i>
+                    <span>Code</span>
+                </a>
+                <a href="#" class="link-btn">
+                    <i class="ai ai-arxiv"></i>
+                    <span>arXiv</span>
+                </a>
+                <a href="#" class="link-btn">
+                    <i class="fab fa-youtube"></i>
+                    <span>Video</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Teaser Video -->
+    <section class="teaser">
+        <div class="container">
+            <div class="video-container">
+                <div class="video-placeholder">
+                    <i class="fas fa-play-circle"></i>
+                    <p>Teaser Video Coming Soon</p>
+                </div>
+                <!-- Uncomment when video is ready -->
+                <!-- <video autoplay loop muted playsinline>
+                    <source src="static/videos/teaser.mp4" type="video/mp4">
+                </video> -->
+            </div>
+            <p class="teaser-caption">
+                <strong>DreamCloth</strong> estimates physically plausible simulation parameters (stiffness, damping, friction, density) from a single monocular image by leveraging world knowledge embedded in pretrained video diffusion models.
+            </p>
+        </div>
+    </section>
+
+    <!-- Abstract -->
+    <section id="abstract" class="section abstract">
+        <div class="container">
+            <h2 class="section-title">Abstract</h2>
+            <div class="abstract-content">
+                <p>
+                    We propose a general research framework for distilling physically plausible simulation parameters from minimal visual input by leveraging the "knowledge of the world" embedded in pretrained video generation models. Given a single monocular image, we reconstruct a 3D scene hypothesis (body + cloth), run a differentiable physics simulation (MPM-based cloth dynamics with contact), and render a short video. We then compute score-distillation gradients from a frozen video diffusion model to iteratively refine physical parameters until the rendered dynamics align with real-world motion statistics.
+                </p>
+                <p>
+                    This reframes inverse simulation as a form of foundation-model supervision, extending recent advances that distill dynamics priors from video generators or combine video diffusion with MPM for material learning. For clothed humans, we also build on the concept of physics-aware avatar reconstruction and motion-aware dynamic clothed avatars, but shift the emphasis toward monocular scalability and parameter identifiability.
+                </p>
+                <p>
+                    From this pipeline, the physical parameters of clothes (e.g., stiffness, damping, friction, density) can be estimated from single images, enabling calibrated garments that can be resized and resimulated across bodies. This directly targets the long-standing sizing gap in virtual try-on (VTON), by recovering garment-specific physics and geometry that generalize across sizes rather than relying on fixed-category priors.
+                </p>
+                <p>
+                    The broader impact is a reusable recipe for parameter estimation without expensive capture: as physics-grounded video models improve, the score signal becomes more informative, enabling more accurate material recovery and richer domains (fluids, fracture, soft tissue). The project's key deliverable is a principled pipeline—simulation, rendering, and distillation—that produces interpretable, reusable physics parameters at scale.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Insight -->
+    <section class="section highlight">
+        <div class="container">
+            <div class="highlight-box">
+                <h3>Key Insight</h3>
+                <p>
+                    Pretrained video diffusion models encode rich priors about how materials move in the real world. By computing score-distillation gradients between rendered physics simulations and these "world priors," we can recover accurate physical parameters without expensive lab measurements or multi-view capture setups.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Method Overview -->
+    <section id="method" class="section method">
+        <div class="container">
+            <h2 class="section-title">Method Overview</h2>
+            
+            <div class="method-diagram">
+                <img src="static/images/method_overview_placeholder.svg" alt="DreamCloth Method Overview" style="width: 100%; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                <!-- Replace with actual method figure when ready -->
+                <!-- <img src="static/images/method_overview.png" alt="DreamCloth Method Overview"> -->
+            </div>
+            
+            <p class="method-caption">
+                <strong>Overview of DreamCloth.</strong> Given a single monocular image, we (1) reconstruct a 3D scene hypothesis with body and cloth geometry, (2) run differentiable MPM-based physics simulation with learnable parameters, (3) render the simulated motion, and (4) compute score-distillation loss against a frozen video diffusion model to optimize physical parameters.
+            </p>
+        </div>
+    </section>
+
+    <!-- Pipeline -->
+    <section class="section pipeline">
+        <div class="container">
+            <h2 class="section-title">Pipeline</h2>
+            
+            <div class="pipeline-grid">
+                <div class="pipeline-step">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    <h4>Scene Reconstruction</h4>
+                    <p>Reconstruct 3D body and cloth geometry from a single monocular image using state-of-the-art reconstruction methods.</p>
+                </div>
+                
+                <div class="pipeline-step">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">
+                        <i class="fas fa-atom"></i>
+                    </div>
+                    <h4>Differentiable Physics</h4>
+                    <p>Simulate cloth dynamics using Material Point Method (MPM) with learnable physical parameters and contact handling.</p>
+                </div>
+                
+                <div class="pipeline-step">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <h4>Neural Rendering</h4>
+                    <p>Render the simulated motion sequence into a video for comparison with video diffusion priors.</p>
+                </div>
+                
+                <div class="pipeline-step">
+                    <div class="step-number">4</div>
+                    <div class="step-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h4>Score Distillation</h4>
+                    <p>Compute gradients from frozen video diffusion model to iteratively refine physics parameters.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Physics Parameters -->
+    <section class="section parameters">
+        <div class="container">
+            <h2 class="section-title">Recovered Physics Parameters</h2>
+            
+            <div class="params-grid">
+                <div class="param-card">
+                    <div class="param-icon">κ<sub>b</sub></div>
+                    <h4>Bending Stiffness</h4>
+                    <p>Controls how resistant the cloth is to bending and folding.</p>
+                </div>
+                
+                <div class="param-card">
+                    <div class="param-icon">κ<sub>s</sub></div>
+                    <h4>Stretch Stiffness</h4>
+                    <p>Determines the cloth's resistance to stretching and shearing.</p>
+                </div>
+                
+                <div class="param-card">
+                    <div class="param-icon">μ</div>
+                    <h4>Friction</h4>
+                    <p>Governs cloth-body and self-collision friction behavior.</p>
+                </div>
+                
+                <div class="param-card">
+                    <div class="param-icon">ρ</div>
+                    <h4>Density</h4>
+                    <p>Material density affecting inertial and gravitational forces.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="section results">
+        <div class="container">
+            <h2 class="section-title">Results</h2>
+            
+            <h3 class="subsection-title">Physics Parameter Recovery</h3>
+            <div class="results-grid">
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Cotton T-Shirt</p>
+                </div>
+                
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Silk Dress</p>
+                </div>
+                
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Denim Jacket</p>
+                </div>
+            </div>
+            
+            <h3 class="subsection-title">Cross-Body Generalization</h3>
+            <p class="results-description">
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Recovered physics parameters enable realistic cloth resimulation across different body shapes and sizes, addressing the virtual try-on sizing gap.
+            </p>
+            
+            <div class="results-grid">
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Original Body</p>
+                </div>
+                
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Resized (Larger)</p>
+                </div>
+                
+                <div class="result-item">
+                    <div class="video-placeholder small">
+                        <i class="fas fa-play-circle"></i>
+                        <p>Demo Video</p>
+                    </div>
+                    <p class="result-caption">Resized (Smaller)</p>
+                </div>
+            </div>
+            
+            <h3 class="subsection-title">Comparison with Baselines</h3>
+            <p class="results-description">
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin ullamcorper tellus sed ante aliquam tempus. Etiam porttitor urna feugiat nibh elementum.
+            </p>
+            
+            <div class="comparison-container">
+                <div class="video-placeholder large">
+                    <i class="fas fa-columns"></i>
+                    <p>Comparison Video Coming Soon</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Applications -->
+    <section class="section applications">
+        <div class="container">
+            <h2 class="section-title">Applications</h2>
+            
+            <div class="apps-grid">
+                <div class="app-card">
+                    <div class="app-icon">
+                        <i class="fas fa-tshirt"></i>
+                    </div>
+                    <h4>Virtual Try-On</h4>
+                    <p>Enable size-accurate virtual try-on by recovering garment-specific physics that generalize across body sizes.</p>
+                </div>
+                
+                <div class="app-card">
+                    <div class="app-icon">
+                        <i class="fas fa-gamepad"></i>
+                    </div>
+                    <h4>Gaming & VFX</h4>
+                    <p>Create simulation-ready cloth assets from reference images for games and visual effects.</p>
+                </div>
+                
+                <div class="app-card">
+                    <div class="app-icon">
+                        <i class="fas fa-vr-cardboard"></i>
+                    </div>
+                    <h4>AR/VR Avatars</h4>
+                    <p>Generate physically accurate clothed avatars for immersive virtual experiences.</p>
+                </div>
+                
+                <div class="app-card">
+                    <div class="app-icon">
+                        <i class="fas fa-industry"></i>
+                    </div>
+                    <h4>Fashion Design</h4>
+                    <p>Prototype garment designs with accurate physics without physical samples.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- BibTeX -->
+    <section id="bibtex" class="section bibtex">
+        <div class="container">
+            <h2 class="section-title">BibTeX</h2>
+            <div class="bibtex-container">
+                <button class="copy-btn" onclick="copyBibtex()">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+                <pre><code>@inproceedings{ghimire2026dreamcloth,
+  title={DreamCloth: World-Prior Distillation for Physically Plausible 
+         Simulation Parameters from Monocular Observations},
+  author={Ghimire, Samip and Poudel, Saroj and Bhatta, Shashank and Bishwokarma, Anish and Bartaula, Dipan},
+  booktitle={SIGGRAPH},
+  year={2026}
+}</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Acknowledgments -->
+    <section class="section acknowledgments">
+        <div class="container">
+            <h2 class="section-title">Acknowledgments</h2>
+            <p>
+                We thank Asst. Prof. Pravin Sangroula for guidance and support throughout this project. We also thank the Department of Electronics and Computer Engineering at Tribhuvan University for providing resources and infrastructure. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>
+                This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> 
+                which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+            </p>
+            <p>
+                This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top -->
+    <button class="scroll-top" onclick="scrollToTop()" aria-label="Scroll to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <script src="static/js/main.js"></script>
+</body>
+</html>

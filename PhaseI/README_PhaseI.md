@@ -17,6 +17,27 @@ This directory contains scripts to set up and run **ECON**, **InstantMesh**, and
 
 ## Quick Start
 
+### 0. Clone dependencies (only if missing)
+
+If your repo does **not** already contain these folders:
+- `../econ/ECON`
+- `../InstantMesh/InstantMesh`
+- `../Garment3d/Garment3DGen`
+
+Then run:
+
+```bash
+./clone_deps.sh
+```
+
+Notes:
+- ECON and InstantMesh have default clone URLs.
+- Garment3DGen clone URL varies by project, so you may need to set:
+
+```bash
+GARMENT3D_REPO_URL="<your-garment3dgen-repo-url>" ./clone_deps.sh
+```
+
 ### 1. Setup Environments
 
 Run the setup scripts to create the conda environments and install all packages:
@@ -77,6 +98,13 @@ This runs:
 - Setup: ECON → InstantMesh → Garment3DGen (skippable with `SKIP_ENV=1`)
 - Inference: ECON → InstantMesh → Garment3DGen (`--target_mesh` from InstantMesh)
 - Collect: copies ECON + Garment3D outputs into one folder under `output_root`
+
+By default, `run_full_pipeline.sh` will also attempt to run `./clone_deps.sh` if required folders are missing.
+To skip that behavior (if you already cloned everything), set:
+
+```bash
+SKIP_CLONE=1 ./run_full_pipeline.sh
+```
 
 ## Setup Script Details
 

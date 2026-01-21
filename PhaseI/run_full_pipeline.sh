@@ -18,6 +18,8 @@
 #
 # Env vars:
 #   SKIP_ENV=1                 Skip environment setup steps
+#   SKIP_CLONE=1               Skip dependency cloning (if econ/InstantMesh/Garment3d are already present)
+#   GARMENT3D_REPO_URL         Used by clone_deps.sh if Garment3DGen is missing
 #   ECON_ENV                   (default: econ_script) - must match setup_econ_env.sh / run_econ.sh defaults if you changed them
 #   INSTANTMESH_ENV            (default: InstantMesh)
 #   GARMENT3D_ENV              (default: garment3d)
@@ -35,6 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SKIP_ENV="${SKIP_ENV:-0}"
+SKIP_CLONE="${SKIP_CLONE:-0}"
 SAVE_VIDEO="${SAVE_VIDEO:-1}"
 
 ECON_ENV="${ECON_ENV:-econ_script}"
@@ -132,6 +135,20 @@ collect_outputs() {
 ###############################################################################
 command -v conda >/dev/null 2>&1 || die "conda not found in PATH"
 init_conda
+
+# Optional: clone deps if missing
+if [ "${SKIP_CLONE}" != "1" ]; then
+  if [ ! -d "${ECON_DIR}" ] || [ ! -d "${IM_DIR}" ] || [ ! -d "${G3D_DIR}" ]; then
+    log "[setup] Some dependency folders are missing; running clone_deps.sh"
+    # Pass through GARMENT3D_REPO_URL/GARMENT3D_REF if user set them
+    GARMENT3D_REPO_URL="${GARMENT3D_REPO_URL:-}" GARMENT3D_REF="${GARMENT3D_REF:-main}" \
+      ECON_REPO_URL="${ECON_REPO_URL:-}" ECON_REF="${ECON_REF:-main}" \
+      INSTANTMESH_REPO_URL="${INSTANTMESH_REPO_URL:-}" INSTANTMESH_REF="${INSTANTMESH_REF:-main}" \
+      bash "${SCRIPT_DIR}/clone_deps.sh"
+  fi
+else
+  log "[setup] Skipping dependency cloning (SKIP_CLONE=1)"
+fi
 
 [ -d "${ECON_DIR}" ] || die "ECON_DIR not found: ${ECON_DIR}"
 [ -d "${IM_DIR}" ] || die "IM_DIR not found: ${IM_DIR}"

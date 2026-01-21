@@ -1,2 +1,9 @@
 data/
 output/
+output2\
+*.png
+econ/
+Garment3d/
+InstantMesh/
+checkpoints\
+*pth

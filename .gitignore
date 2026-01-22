@@ -2,3 +2,20 @@
 checkpoints
 editing
 generation
+# Outputs from bvh_to_smpl.py
+*.npz
+*.pkl
+smpl_results/
+# Outputs from frame_to_motion.py
+motion_frames/
+motions/
+# Common result folders
+results/
+output/
+# Ignore log and temporary files
+*.log
+*.tmp
+animation.mp4
+smpl_meshes_from_bvh/
+rendered_frames/
+test_frame.png

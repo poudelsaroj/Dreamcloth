@@ -195,7 +195,7 @@ if __name__ == '__main__':
                 else:
                     length_list.append(int(infos[-1]))
     else:
-        raise "A text prompt, or a file a text prompts are required!!!"
+        raise ValueError("A text prompt, or a file a text prompts are required!!!")
     # print('loading checkpoint {}'.format(file))
 
     if est_length:

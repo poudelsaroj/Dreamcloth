@@ -248,6 +248,38 @@ model = UNet3DConditionModel.from_pretrained("stabilityai/stable-video-diffusion
 # (requires large dataset of cloth simulations)
 ```
 
+### 2b. Use Wan2.2 Image-to-Video (I2V) as the diffusion prior (DreamCloth integration)
+
+DreamCloth can optionally use the official **Wan2.2 I2V** model as the frozen diffusion prior that provides a
+"natural video" gradient signal during Phase3.
+
+This repo includes a wrapper: `phase3/wan22_i2v_guidance.py` and a backend switch in `train_end_to_end.py`.
+
+**What changes vs the toy UNet**
+- Wan2.2 is a *latent-space* flow-prediction model (uses its own VAE + schedule).
+- It is image-conditioned (I2V) and (optionally) text-conditioned.
+- It is much heavier than the local ~100M UNet; expect substantially higher VRAM/compute.
+
+**Setup (high-level)**
+1. Clone Wan2.2 somewhere (or install it as a package) so `import wan` works.
+2. Install Wan2.2 dependencies (diffusers/transformers/etc).
+3. Download the Wan2.2-I2V checkpoints into a folder containing:
+   - `low_noise_model/` and `high_noise_model/` (diffusers-style subfolders)
+   - `Wan2.1_VAE.pth`
+   - `models_t5_umt5-xxl-enc-bf16.pth` (if you enable prompt conditioning)
+4. Ensure the tokenizer referenced by `--wan-t5-tokenizer` is available locally or cached.
+
+**Run**
+```bash
+python train_end_to_end.py \
+  --diffusion-backend wan22-i2v \
+  --wan-repo-root /path/to/Wan2.2 \
+  --wan-ckpt-dir /path/to/Wan2.2-I2V-A14B \
+  --cond-image /path/to/input.jpg \
+  --wan-prompt "" \
+  --epochs 5
+```
+
 ### 3. Add Regularization
 
 Prevent parameter collapse:

@@ -74,6 +74,22 @@ python test_end_to_end.py --body-mesh "F:\path\to\body.obj" --cloth-mesh "F:\pat
 - If you already ran MPM, pass `--skip-mpm` to `train_end_to_end.py` and
   point `--mpm-output-dir` at the existing output folder.
 
+## Evaluation (metrics)
+
+- Paper-style metric definitions: `EVALUATION_METRICS.md`
+- Metric computation code (single-image-first): `metrices/README.md`
+
+Example:
+
+```bash
+python -m metrices --pred-video-dir output/phase2_sim/video_0000 --out-json metrics.json
+```
+
+## Phase3 Diffusion Prior Options
+
+By default, Phase3 uses a lightweight local video diffusion model (`phase3/model.py`) as a frozen prior.
+If you want to use **Wan2.2 I2V** as the prior instead, see `phase3/README.md`.
+
 
 ## License
 

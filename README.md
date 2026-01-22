@@ -89,6 +89,17 @@ python -m metrices --pred-video-dir output/phase2_sim/video_0000 --out-json metr
 
 By default, Phase3 uses a lightweight local video diffusion model (`phase3/model.py`) as a frozen prior.
 If you want to use **Wan2.2 I2V** as the prior instead, see `phase3/README.md`.
+## Render MPM to Video (PyTorch3D)
+
+If you have PyTorch3D available (e.g., in WSL), you can render the mesh
+sequence into a video file:
+
+```bash
+python render_mpm_video.py --input-dir /mnt/f/mpm/github/Dreamcloth/output/phase2_sim/video_0000 --output /mnt/f/mpm/github/Dreamcloth/output/phase2_sim/video_0000.mp4 --fps 24 --image-size 512 --include-body
+```
+
+Use `--camera` with `front`, `side`, or `top` views. If you pass an output path
+without `.mp4` or `.gif`, the script writes frames as `frame_####.png`.
 
 
 ## License

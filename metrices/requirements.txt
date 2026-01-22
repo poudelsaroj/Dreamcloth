@@ -1,0 +1,13 @@
+numpy>=1.24
+scipy>=1.10
+trimesh>=4.0
+scikit-image>=0.20
+Pillow>=9.0
+
+# Recommended for robust spatial queries (often best installed via conda-forge on Windows)
+rtree>=1.0
+
+# Optional: enable LPIPS metric (requires a working PyTorch install)
+torch>=2.0
+lpips>=0.1.4
+

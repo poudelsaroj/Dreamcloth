@@ -17,7 +17,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -37,6 +37,64 @@ from phase3.utils import (
     save_checkpoint,
     set_seed,
 )
+from phase3.wan22_i2v_guidance import Wan22I2VConfig, Wan22I2VGuidance
+
+
+def _maybe_init_wandb(args: argparse.Namespace, extra_config: Dict[str, Any] | None = None):
+    if not getattr(args, "wandb", False):
+        return None
+
+    try:
+        import wandb  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "W&B is enabled but 'wandb' is not installed. Install with: pip install wandb"
+        ) from e
+
+    config: Dict[str, Any] = {
+        "seed": args.seed,
+        "device": args.device,
+        "use_amp": not args.no_amp,
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "video_length": args.video_length,
+        "spatial_size": list(args.spatial_size),
+        "run_phase1": args.run_phase1,
+        "skip_mpm": args.skip_mpm,
+        "mpm_frames": args.mpm_frames,
+        "mpm_save_every": args.mpm_save_every,
+        "mpm_y_offset": args.mpm_y_offset,
+        "phase1_output_root": str(args.phase1_output_root),
+        "mpm_output_dir": str(args.mpm_output_dir),
+        "checkpoint_dir": str(args.checkpoint_dir),
+    }
+    if extra_config:
+        config.update(extra_config)
+
+    tags = None
+    if getattr(args, "wandb_tags", None):
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+
+    run = wandb.init(
+        entity=getattr(args, "wandb_entity", None) or None,
+        project=getattr(args, "wandb_project", None) or None,
+        name=getattr(args, "wandb_name", None) or None,
+        group=getattr(args, "wandb_group", None) or None,
+        notes=getattr(args, "wandb_notes", None) or None,
+        tags=tags,
+        dir=str(getattr(args, "wandb_dir", "wandb")),
+        mode=getattr(args, "wandb_mode", "online"),
+        config=config,
+    )
+
+    define_metric = getattr(run, "define_metric", None) or getattr(wandb, "define_metric", None)
+    if callable(define_metric):
+        define_metric("train/step")
+        define_metric("train/*", step_metric="train/step")
+        define_metric("mpm/*", step_metric="train/step")
+        define_metric("time/*", step_metric="train/step")
+    return run
 
 
 def _find_first_obj(root: Path, patterns: List[str], label: str) -> Optional[Path]:
@@ -231,7 +289,12 @@ def train_one_epoch(
     epoch: int,
     scaler: Optional[GradScaler],
     use_amp: bool,
-) -> Tuple[float, Dict[str, float]]:
+    wandb_run: Any = None,
+    global_step: int = 0,
+    log_every: int = 10,
+    wan_guidance: Any = None,
+    wan_cond_image_01: Any = None,
+) -> Tuple[float, Dict[str, float], int]:
     mpm_params.train()
     diffusion_model.eval()
 
@@ -244,21 +307,28 @@ def train_one_epoch(
         params = mpm_params()
         simulated_videos = adapt_video_with_params(base_videos, params)
 
-        simulated_videos_norm = normalize_video(simulated_videos)
+        if wan_guidance is not None:
+            if wan_cond_image_01 is None:
+                raise ValueError("WAN backend requires a conditioning image tensor.")
+            batch_size = simulated_videos.shape[0]
+            timesteps = torch.randint(0, wan_guidance.num_train_timesteps, (batch_size,), device=device).long()
+            loss = wan_guidance.compute_loss(simulated_videos, wan_cond_image_01, timesteps=timesteps)
+        else:
+            simulated_videos_norm = normalize_video(simulated_videos)
 
-        batch_size = simulated_videos_norm.shape[0]
-        timesteps = torch.randint(0, scheduler.timesteps, (batch_size,), device=device).long()
-        noise = torch.randn_like(simulated_videos_norm)
+            batch_size = simulated_videos_norm.shape[0]
+            timesteps = torch.randint(0, scheduler.timesteps, (batch_size,), device=device).long()
+            noise = torch.randn_like(simulated_videos_norm)
 
-        if use_amp:
-            noise = noise.half()
-            simulated_videos_norm = simulated_videos_norm.half()
+            if use_amp:
+                noise = noise.half()
+                simulated_videos_norm = simulated_videos_norm.half()
 
-        noisy_videos = scheduler.q_sample(simulated_videos_norm, timesteps, noise)
+            noisy_videos = scheduler.q_sample(simulated_videos_norm, timesteps, noise)
 
-        with autocast("cuda", enabled=use_amp):
-            predicted_noise = diffusion_model(noisy_videos, timesteps)
-            loss = compute_diffusion_loss(predicted_noise, noise)
+            with autocast("cuda", enabled=use_amp):
+                predicted_noise = diffusion_model(noisy_videos, timesteps)
+                loss = compute_diffusion_loss(predicted_noise, noise)
 
         if use_amp and scaler is not None:
             scaler.scale(loss).backward()
@@ -271,13 +341,24 @@ def train_one_epoch(
         mpm_params.clamp_parameters()
         loss_meter.update(loss.item(), batch_size)
 
+        global_step += 1
+        if wandb_run is not None and log_every > 0 and (global_step % log_every == 0):
+            wandb_run.log(
+                {
+                    "train/step": global_step,
+                    "train/loss": float(loss.item()),
+                    "train/loss_avg": float(loss_meter.avg),
+                    "train/epoch": int(epoch),
+                }
+            )
+
         if batch_idx % 10 == 0:
             print(
                 f"Epoch {epoch} [{batch_idx}/{len(dataloader)}] "
                 f"Loss: {loss.item():.6f} (avg: {loss_meter.avg:.6f})"
             )
 
-    return loss_meter.avg, mpm_params.get_params_dict()
+    return loss_meter.avg, mpm_params.get_params_dict(), global_step
 
 
 def main() -> None:
@@ -305,6 +386,31 @@ def main() -> None:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--no-amp", action="store_true")
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints/end_to_end"))
+
+    # Diffusion prior backend
+    parser.add_argument("--diffusion-backend", type=str, default="local", choices=["local", "wan22-i2v"])
+
+    # Wan2.2 I2V backend options
+    parser.add_argument("--wan-repo-root", type=Path, default=None, help="Path to cloned Wan2.2 repo (so we can import `wan`)")
+    parser.add_argument("--wan-ckpt-dir", type=Path, default=None, help="Path to Wan2.2-I2V checkpoint directory (contains low_noise_model/high_noise_model/VAE/T5)")
+    parser.add_argument("--wan-prompt", type=str, default="", help="Prompt for Wan2.2 I2V conditioning")
+    parser.add_argument("--wan-negative-prompt", type=str, default="", help="Negative prompt for Wan2.2 I2V conditioning")
+    parser.add_argument("--wan-use-cfg", action="store_true", help="Enable classifier-free guidance inside Wan2.2 forward (2x compute)")
+    parser.add_argument("--wan-cfg-scale", type=float, default=3.5, help="CFG scale for Wan2.2 when --wan-use-cfg is set")
+    parser.add_argument("--wan-dtype", type=str, default="fp16", choices=["fp16", "bf16", "fp32"])
+    parser.add_argument("--cond-image", type=Path, default=None, help="Conditioning image for Wan2.2 I2V (defaults to --phase1-input-image if provided)")
+
+    # Experiment tracking (Weights & Biases)
+    parser.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging")
+    parser.add_argument("--wandb-project", type=str, default=None, help="W&B project name")
+    parser.add_argument("--wandb-entity", type=str, default=None, help="W&B entity (user or team)")
+    parser.add_argument("--wandb-name", type=str, default=None, help="W&B run name")
+    parser.add_argument("--wandb-group", type=str, default=None, help="W&B group name for sweeps/ablations")
+    parser.add_argument("--wandb-notes", type=str, default=None, help="W&B notes")
+    parser.add_argument("--wandb-tags", type=str, default=None, help="Comma-separated tags")
+    parser.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
+    parser.add_argument("--wandb-dir", type=Path, default=Path("wandb"), help="Local W&B directory")
+    parser.add_argument("--wandb-log-every", type=int, default=10, help="Log every N steps")
     args = parser.parse_args()
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -312,10 +418,18 @@ def main() -> None:
 
     set_seed(args.seed)
 
+    phase1_time_s = None
+    phase2_time_s = None
+    phase3_time_s = None
+
+    if args.wandb_mode == "disabled":
+        args.wandb = False
+
     if args.run_phase1:
         if args.phase1_input_image is None:
             raise ValueError("--phase1-input-image is required when --run-phase1 is set.")
         print("[phase1] Running PhaseI pipeline...")
+        phase1_start = time.time()
         run_phase1(
             phase1_script=args.phase1_script,
             input_image=args.phase1_input_image,
@@ -323,6 +437,7 @@ def main() -> None:
             skip_env=args.phase1_skip_env,
             skip_clone=args.phase1_skip_clone,
         )
+        phase1_time_s = time.time() - phase1_start
 
     if args.body_mesh is None and args.body_sequence_dir is not None:
         seq_candidates = sorted(args.body_sequence_dir.glob("*.obj"))
@@ -338,6 +453,7 @@ def main() -> None:
 
     if not args.skip_mpm:
         print("[phase2] Running MPM simulation...")
+        phase2_start = time.time()
         body_sequence = build_body_sequence(
             body_mesh=body_mesh,
             body_sequence_dir=args.body_sequence_dir,
@@ -350,11 +466,41 @@ def main() -> None:
             save_every=args.mpm_save_every,
             y_offset=args.mpm_y_offset,
         )
+        phase2_time_s = time.time() - phase2_start
 
     print("[phase3] Starting optimization...")
     diffusion_model = create_video_diffusion_model(device=device, fp16=use_amp)
     mpm_params = MPMParameters(device=device)
     scheduler = DiffusionScheduler(timesteps=1000, schedule="cosine", device=device)
+
+    wan_guidance = None
+    wan_cond_image_01 = None
+    if args.diffusion_backend == "wan22-i2v":
+        if args.wan_ckpt_dir is None:
+            raise ValueError("--wan-ckpt-dir is required when --diffusion-backend wan22-i2v")
+        cond_image_path = args.cond_image or args.phase1_input_image
+        if cond_image_path is None:
+            raise ValueError("--cond-image (or --phase1-input-image) is required when using --diffusion-backend wan22-i2v")
+
+        from PIL import Image
+
+        img = Image.open(cond_image_path).convert("RGB")
+        img_np = np.asarray(img).astype(np.float32) / 255.0
+        wan_cond_image_01 = torch.from_numpy(img_np).permute(2, 0, 1).contiguous().to(device)
+
+        dtype_map = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}
+        wan_dtype = dtype_map[args.wan_dtype]
+        wan_cfg = Wan22I2VConfig(
+            wan_repo_root=args.wan_repo_root,
+            ckpt_dir=args.wan_ckpt_dir,
+            device=device,
+            dtype=wan_dtype,
+            prompt=args.wan_prompt,
+            negative_prompt=args.wan_negative_prompt,
+            use_cfg=args.wan_use_cfg,
+            cfg_scale=args.wan_cfg_scale,
+        )
+        wan_guidance = Wan22I2VGuidance(wan_cfg).to(device)
 
     dataloader = create_dataloader(
         data_root=str(args.mpm_output_dir),
@@ -374,10 +520,31 @@ def main() -> None:
     scaler = GradScaler("cuda") if use_amp else None
 
     best_loss = float("inf")
-    start = time.time()
+    total_start = time.time()
+    phase3_start = time.time()
 
+    wandb_run = _maybe_init_wandb(
+        args,
+        extra_config={
+            "resolved_body_mesh": str(body_mesh),
+            "resolved_cloth_mesh": str(cloth_mesh),
+            "resolved_device": device,
+            "use_amp_resolved": use_amp,
+        },
+    )
+    if wandb_run is not None:
+        wandb_run.log(
+            {
+                "train/step": 0,
+                "time/phase1_sec": float(phase1_time_s) if phase1_time_s is not None else None,
+                "time/phase2_sec": float(phase2_time_s) if phase2_time_s is not None else None,
+            }
+        )
+
+    global_step = 0
     for epoch in range(1, args.epochs + 1):
-        avg_loss, param_dict = train_one_epoch(
+        epoch_start = time.time()
+        avg_loss, param_dict, global_step = train_one_epoch(
             diffusion_model=diffusion_model,
             mpm_params=mpm_params,
             scheduler=scheduler,
@@ -387,24 +554,59 @@ def main() -> None:
             epoch=epoch,
             scaler=scaler,
             use_amp=use_amp,
+            wandb_run=wandb_run,
+            global_step=global_step,
+            log_every=max(1, int(args.wandb_log_every)),
+            wan_guidance=wan_guidance,
+            wan_cond_image_01=wan_cond_image_01,
         )
+        epoch_time_s = time.time() - epoch_start
 
         print(f"[phase3] Epoch {epoch} loss: {avg_loss:.6f}")
         for name, value in param_dict.items():
             print(f"  {name}: {value:.4f}")
 
+        if wandb_run is not None:
+            log_payload = {
+                "train/step": global_step,
+                "train/epoch": int(epoch),
+                "train/epoch_loss": float(avg_loss),
+                "time/epoch_sec": float(epoch_time_s),
+            }
+            for name, value in param_dict.items():
+                log_payload[f"mpm/{name}"] = float(value)
+            wandb_run.log(log_payload)
+
         if avg_loss < best_loss:
             best_loss = avg_loss
+            best_path = args.checkpoint_dir / "best_checkpoint.pth"
             save_checkpoint(
-                path=str(args.checkpoint_dir / "best_checkpoint.pth"),
+                path=str(best_path),
                 mpm_params=param_dict,
                 optimizer_state=optimizer.state_dict(),
                 epoch=epoch,
                 loss=avg_loss,
             )
+            if wandb_run is not None:
+                try:
+                    wandb_run.log({"train/step": global_step, "train/best_loss": float(best_loss)})
+                    wandb_run.save(str(best_path))
+                except Exception:
+                    pass
 
-    total = time.time() - start
+    phase3_time_s = time.time() - phase3_start
+    total = time.time() - total_start
     print(f"[done] Total time: {total:.2f}s, best loss: {best_loss:.6f}")
+
+    if wandb_run is not None:
+        try:
+            wandb_run.summary["best_loss"] = float(best_loss)
+            if phase2_time_s is not None:
+                wandb_run.summary["phase2_sec"] = float(phase2_time_s)
+            wandb_run.summary["phase3_sec"] = float(phase3_time_s)
+            wandb_run.summary["total_sec"] = float(total)
+        finally:
+            wandb_run.finish()
 
 
 if __name__ == "__main__":
